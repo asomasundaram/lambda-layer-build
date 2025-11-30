@@ -39,8 +39,11 @@ jobs:
       - name: Install dependencies into layer folder
         run: |
           mkdir -p layer/python
+          # Pillow (force compile from source for Lambda 3.14)
           python -m pip install --no-binary :all: Pillow -t layer/python
+          # Matplotlib
           python -m pip install matplotlib -t layer/python
+          # ReportLab
           python -m pip install reportlab -t layer/python
 
       - name: Zip the layer
