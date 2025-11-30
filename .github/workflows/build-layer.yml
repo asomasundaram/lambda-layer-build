@@ -1,4 +1,4 @@
-name: Build Lambda Layer
+name: Build Lambda Layer (Pillow + Matplotlib + Reportlab)
 
 on:
   workflow_dispatch:
@@ -6,54 +6,45 @@ on:
 jobs:
   build-layer:
     runs-on: ubuntu-latest
-    env:
-      PYTHON_VERSION: "3.14"
+
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install system dependencies for Pillow
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            libjpeg-dev \
-            zlib1g-dev \
-            libtiff-dev \
-            libfreetype6-dev \
-            liblcms2-dev \
-            libwebp-dev \
-            pkg-config \
-            libopenjp2-7-dev \
-            libimagequant-dev \
-            tcl-dev tk-dev
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Run build inside Amazon Linux 2023
+        uses: addnab/docker-run-action@v3
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          image: public.ecr.aws/amazonlinux/amazonlinux:2023
+          options: --platform=linux/amd64
+          run: |
+            echo "Installing system dependencies..."
+            dnf install -y python3.9 python3.9-pip \
+                           libtiff libjpeg libpng freetype ghostscript
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
+            echo "Creating layer directory structure..."
+            mkdir -p /opt/python
+            mkdir -p /opt/lib
 
-      - name: Install dependencies into layer folder
-        run: |
-          mkdir -p layer/python
-          # Pillow (force compile from source for Lambda 3.14)
-          python -m pip install --no-binary :all: Pillow -t layer/python
-          # Matplotlib
-          python -m pip install matplotlib -t layer/python
-          # ReportLab
-          python -m pip install reportlab -t layer/python
+            echo "Upgrading pip..."
+            pip3.9 install --upgrade pip
 
-      - name: Zip the layer
-        run: |
-          cd layer
-          zip -r9 ../layer.zip python
-          cd ..
+            echo "Installing Python packages into /opt/python..."
+            pip3.9 install Pillow matplotlib reportlab -t /opt/python
 
-      - name: Upload layer.zip as artifact
+            echo "Copying native shared libraries..."
+            cp /usr/lib64/libtiff.so.6* /opt/lib/ || true
+            cp /usr/lib64/libjpeg.so.* /opt/lib/ || true
+            cp /usr/lib64/libpng16.so.* /opt/lib/ || true
+            cp /usr/lib64/libfreetype.so.* /opt/lib/ || true
+            cp /usr/lib64/libz.so.* /opt/lib/ || true
+
+            echo "Creating ZIP file..."
+            cd /opt
+            zip -r9 /layer.zip .
+
+      - name: Upload layer.zip artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lambda-layer-3.14-x86_64
+          name: layer
           path: layer.zip
+          retention-days: 7
