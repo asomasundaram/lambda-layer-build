@@ -34,7 +34,7 @@ jobs:
           cd ..
 
       - name: Upload layer.zip as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: lambda-layer-3.14-x86_64
           path: layer.zip
